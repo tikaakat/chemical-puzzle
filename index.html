@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Chemical Puzzle - Complete with Collection</title>
+    <style>
+        body { display: flex; flex-direction: column; align-items: center; background-color: #0b0c10; color: #cdd6f4; font-family: sans-serif; margin-top: 10px; user-select: none; }
+        .screen { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 400px;}
+        .active-screen { display: flex; }
+        h1 { font-size: 2.8em; color: #66fcf1; margin-bottom: 5px; text-shadow: 0 0 15px rgba(102, 252, 241, 0.5); letter-spacing: 2px;}
+        .subtitle { color: #c5c6c7; margin-bottom: 20px; font-size: 0.9em; text-align: center; }
+        .menu-btn { background-color: #45a29e; color: #0b0c10; font-size: 1.2em; font-weight: bold; padding: 15px 40px; margin: 8px; border: none; border-radius: 30px; cursor: pointer; width: 260px; box-shadow: 0 4px 15px rgba(69, 162, 158, 0.4); transition: transform 0.1s; }
+        .menu-btn:hover { transform: scale(1.05); }
+        .endless-btn { background-color: #cba6f7; box-shadow: 0 4px 15px rgba(203, 166, 247, 0.4); }
+        .col-btn { background-color: #f9e2af; box-shadow: 0 4px 15px rgba(249, 226, 175, 0.4); }
+        .twitter-btn { background-color: #1da1f2; color: #fff; box-shadow: 0 4px 15px rgba(29, 161, 242, 0.4); }
+        #gameScreen { position: relative; }
+        canvas { background-color: #1f2833; border: 2px solid #45a29e; border-radius: 12px; box-shadow: 0 0 20px rgba(69, 162, 158, 0.2); touch-action: none; z-index: 1; }
+        .ui-container { width: 360px; margin-bottom: 5px; }
+        .header-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+        .stage-box { font-size: 1.2em; font-weight: bold; color: #66fcf1; text-shadow: 0 0 8px rgba(102, 252, 241, 0.5); }
+        .moves-box { font-size: 1.2em; font-weight: bold; color: #f38ba8; }
+        .score-box { font-size: 1.1em; font-weight: bold; color: #f9e2af; }
+        .target-box { background: #1f2833; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #66fcf1; margin-bottom: 10px; box-shadow: inset 0 0 10px rgba(102,252,241,0.1); }
+        .target-label { font-size: 0.8em; color: #c5c6c7; margin-bottom: 2px; letter-spacing: 1px;}
+        .target-name { font-size: 1.4em; font-weight: bold; color: #66fcf1; }
+        .target-formula { font-size: 1.1em; color: #45a29e; font-weight: bold; }
+        .target-hint { font-size: 0.8em; color: #f9e2af; margin-top: 4px; line-height: 1.3; }
+        .message-overlay { position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%); width: 100%; font-size: 2em; font-weight: bold; color: #ffffff; text-shadow: 0 0 15px #66fcf1; pointer-events: none; opacity: 0; transition: opacity 0.3s; text-align: center; z-index: 10; }
+        
+        /* コレクション画面用スタイル */
+        .collection-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 360px; max-height: 60vh; overflow-y: auto; margin-bottom: 20px; padding-right: 5px; }
+        .collection-grid::-webkit-scrollbar { width: 8px; }
+        .collection-grid::-webkit-scrollbar-thumb { background: #45a29e; border-radius: 4px; }
+        .col-item { background: #1f2833; border: 1px solid #45a29e; border-radius: 8px; padding: 10px; text-align: center; }
+        .col-item.locked { border-color: #585b70; background: #181825; opacity: 0.7; }
+        .col-name { font-weight: bold; color: #66fcf1; font-size: 1.1em; margin-bottom: 5px; }
+        .locked .col-name { color: #a6adc8; }
+        .col-formula { color: #89dceb; font-size: 0.9em; margin-bottom: 5px; }
+        .col-count { color: #f9e2af; font-size: 0.8em; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="titleScreen" class="screen active-screen">
+        <h1>Chemical Puzzle</h1>
+        <div class="subtitle">官能基を合成して、分子を作り出せ！</div>
+        <button class="menu-btn" onclick="startGame('story')">ストーリーモード</button>
+        <button class="menu-btn endless-btn" onclick="startGame('endless')">とことんモード</button>
+        <button class="menu-btn col-btn" onclick="showCollection()">分子図鑑</button>
+    </div>
+
+    <div id="gameScreen" class="screen">
+        <h2 style="color: #66fcf1; text-shadow: 0 0 10px rgba(102,252,241,0.5); margin: 5px 0;">Chemical Puzzle</h2>
+        <div class="ui-container">
+            <div class="header-row">
+                <div class="stage-box" id="modeDisplay">STAGE 1</div>
+                <div class="moves-box">手数: <span id="movesDisplay">0</span></div>
+                <div class="score-box">SCORE: <span id="scoreDisplay">0</span></div>
+            </div>
+            <div class="target-box" id="targetBox">
+                <div class="target-label">TARGET MOLECULE</div>
+                <div class="target-name" id="targetName">-</div>
+                <div class="target-formula" id="targetFormula">-</div>
+                <div class="target-hint" id="targetHint">-</div>
+            </div>
+        </div>
+        <canvas id="gameCanvas" width="360" height="360"></canvas>
+        <div id="centerMessage" class="message-overlay"></div>
+    </div>
+
+    <div id="resultScreen" class="screen">
+        <h1 id="resultTitle">GAME OVER</h1>
+        <p id="resultDetail" style="font-size: 1.5em; margin-bottom: 20px; text-align: center; line-height: 1.4;"></p>
+        <button class="menu-btn twitter-btn" onclick="shareTwitter()">𝕏 でシェア</button>
+        <button class="menu-btn" onclick="showTitle()">タイトルへ戻る</button>
+    </div>
+
+    <div id="collectionScreen" class="screen">
+        <h2 style="color: #f9e2af; margin-bottom: 5px;">分子図鑑</h2>
+        <div class="subtitle" id="colProgress">達成率: 0%</div>
+        <div class="collection-grid" id="collectionGrid"></div>
+        <button class="menu-btn" onclick="showTitle()">タイトルへ戻る</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
+        const COLS = 6; const ROWS = 6; const TILE_SIZE = 60;
+        let currentMode = ''; let currentStageIdx = 0; let movesLeft = 0; let score = 0;
+        let grid = []; let path = []; let isDrawing = false; let particles = [];
+        let isAnimating = false; let isTransitioning = false; 
+
+        // セーブデータの読み込み
+        let collectionData = JSON.parse(localStorage.getItem('chemicalPuzzleSave')) || {};
+
+        const TILES = {
+            'H': { color: '#cdd6f4', glow: '#ffffff', weight: 45, isBase: true },
+            'O': { color: '#f38ba8', glow: '#ffb3c6', weight: 35, isBase: true },
+            'C': { color: '#f9e2af', glow: '#ffeeba', weight: 20, isBase: true },
+            '-CH3': { color: '#89b4fa', glow: '#b4befe', isBase: false }, 
+            '-OH': { color: '#94e2d5', glow: '#a6e3a1', isBase: false },
+            '-CHO': { color: '#fab387', glow: '#ffcda8', isBase: false }, 
+            '-COOH': { color: '#cba6f7', glow: '#e1c4ff', isBase: false },
+            'Ph': { color: '#f5c2e7', glow: '#ffdbf3', isBase: false }
+        };
+
+        const FRAGMENTS = [
+            { result: '-CH3', reqs: [{ 'C': 1, 'H': 3 }] }, { result: '-OH', reqs: [{ 'O': 1, 'H': 1 }] },
+            { result: '-CHO', reqs: [{ 'C': 1, 'O': 1, 'H': 1 }] }, { result: '-COOH', reqs: [{ 'C': 1, 'O': 2, 'H': 1 }] },
+            { result: 'Ph', reqs: [{ 'C': 6 }] }
+        ];
+
+        const MOLECULES = {
+            'H2': { name: '水素', formula: 'H2', hint: '[ H + H ]', reqs: [{ 'H': 2 }], score: 100 },
+            'O2': { name: '酸素', formula: 'O2', hint: '[ O + O ]', reqs: [{ 'O': 2 }], score: 200 },
+            'O3': { name: 'オゾン', formula: 'O3', hint: '[ O×3 ]', reqs: [{ 'O': 3 }], score: 400 },
+            'CO': { name: '一酸化炭素', formula: 'CO', hint: '[ C + O ]', reqs: [{ 'C': 1, 'O': 1 }], score: 200 },
+            'H2O': { name: '水', formula: 'H2O', hint: '[ H×2 + O ] または [ H + -OH ]', reqs: [{ 'H': 2, 'O': 1 }, { 'H': 1, '-OH': 1 }], score: 300 },
+            'CO2': { name: '二酸化炭素', formula: 'CO2', hint: '[ C + O×2 ]', reqs: [{ 'C': 1, 'O': 2 }], score: 600 },
+            'H2O2': { name: '過酸化水素', formula: 'HO-OH', hint: '[ H×2 + O×2 ] または [ -OH + -OH ]', reqs: [{ 'H': 2, 'O': 2 }, { '-OH': 2 }], score: 500 },
+            'CH4': { name: 'メタン', formula: 'CH4', hint: '[ C + H×4 ] または [ H + -CH3 ]', reqs: [{ 'C': 1, 'H': 4 }, { 'H': 1, '-CH3': 1 }], score: 600 },
+            'C2H6': { name: 'エタン', formula: 'CH3-CH3', hint: '[ -CH3 + -CH3 ]', reqs: [{ '-CH3': 2 }], score: 800 },
+            'HCHO': { name: 'ホルムアルデヒド', formula: 'H-CHO', hint: '[ C + H×2 + O ] または [ H + -CHO ]', reqs: [{ 'C': 1, 'H': 2, 'O': 1 }, { 'H': 1, '-CHO': 1 }], score: 900 },
+            'CH3OH': { name: 'メタノール', formula: 'CH3-OH', hint: '[ -CH3 + -OH ]', reqs: [{ '-CH3': 1, '-OH': 1 }], score: 1000 },
+            'DME': { name: 'ジメチルエーテル', formula: 'CH3-O-CH3', hint: '[ -CH3×2 + O ]', reqs: [{ '-CH3': 2, 'O': 1 }], score: 1200 },
+            'CH3CHO': { name: 'アセトアルデヒド', formula: 'CH3-CHO', hint: '[ -CH3 + -CHO ]', reqs: [{ '-CH3': 1, '-CHO': 1 }], score: 1200 },
+            'HCOOH': { name: 'ギ酸', formula: 'H-COOH', hint: '[ H + -COOH ]', reqs: [{ 'H': 1, '-COOH': 1 }], score: 1500 },
+            'CH3COOH': { name: '酢酸', formula: 'CH3-COOH', hint: '[ -CH3 + -COOH ]', reqs: [{ '-CH3': 1, '-COOH': 1 }], score: 2000 },
+            'Benzene': { name: 'ベンゼン', formula: 'C6H6', hint: '[ Ph + H ]', reqs: [{ 'Ph': 1, 'H': 1 }], score: 1000 },
+            'Toluene': { name: 'トルエン', formula: 'Ph-CH3', hint: '[ Ph + -CH3 ]', reqs: [{ 'Ph': 1, '-CH3': 1 }], score: 1500 },
+            'PhCHO': { name: 'ベンズアルデヒド', formula: 'Ph-CHO', hint: '[ Ph + -CHO ]', reqs: [{ 'Ph': 1, '-CHO': 1 }], score: 1800 },
+            'PhOH': { name: 'フェノール', formula: 'Ph-OH', hint: '[ Ph + -OH ]', reqs: [{ 'Ph': 1, '-OH': 1 }], score: 3000 },
+            'PhCOOH': { name: '安息香酸', formula: 'Ph-COOH', hint: '[ Ph + -COOH ]', reqs: [{ 'Ph': 1, '-COOH': 1 }], score: 4000 }
+        };
+
+        const STAGES = [
+            { id: 'H2', moves: 10 }, { id: 'H2O', moves: 15 }, { id: 'CO2', moves: 15 },
+            { id: 'CH4', moves: 20 }, { id: 'H2O2', moves: 20 }, { id: 'CH3OH', moves: 25 },
+            { id: 'HCHO', moves: 25 }, { id: 'Benzene', moves: 30 }, { id: 'CH3CHO', moves: 30 },
+            { id: 'Toluene', moves: 35 }, { id: 'CH3COOH', moves: 40 }, { id: 'PhOH', moves: 45 }
+        ];
+
+        function switchScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active-screen'));
+            document.getElementById(screenId).classList.add('active-screen');
+        }
+        function showTitle() { switchScreen('titleScreen'); }
+
+        // --- 図鑑画面の表示 ---
+        function showCollection() {
+            const gridEl = document.getElementById('collectionGrid');
+            gridEl.innerHTML = '';
+            let unlockedCount = 0;
+            const total = Object.keys(MOLECULES).length;
+
+            Object.keys(MOLECULES).forEach(key => {
+                const mol = MOLECULES[key];
+                const count = collectionData[key] || 0;
+                const isUnlocked = count > 0;
+                if (isUnlocked) unlockedCount++;
+
+                const item = document.createElement('div');
+                item.className = `col-item ${isUnlocked ? '' : 'locked'}`;
+                item.innerHTML = `
+                    <div class="col-name">${isUnlocked ? mol.name : '???'}</div>
+                    <div class="col-formula">${isUnlocked ? mol.formula : '???'}</div>
+                    <div class="col-count">合成数: ${count}</div>
+                `;
+                gridEl.appendChild(item);
+            });
+            document.getElementById('colProgress').innerText = `達成率: ${Math.floor((unlockedCount / total) * 100)}% (${unlockedCount}/${total})`;
+            switchScreen('collectionScreen');
+        }
+
+        // --- Twitterシェア ---
+        function shareTwitter() {
+            let text = "";
+            if (currentMode === 'story') {
+                if (currentStageIdx >= STAGES.length) text = `【Chemical Puzzle】ストーリーモードを完全クリア！ 最終スコア: ${score}pt\n#ケミカルパズル`;
+                else text = `【Chemical Puzzle】ストーリーモード STAGE ${currentStageIdx+1} でゲームオーバー。 スコア: ${score}pt\n#ケミカルパズル`;
+            } else {
+                text = `【Chemical Puzzle】とことんモードで ${score}pt を獲得しました！\n#ケミカルパズル`;
+            }
+            const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+            window.open(url, '_blank');
+        }
+
+        function startGame(mode) {
+            currentMode = mode; score = 0; currentStageIdx = 0; particles = []; isAnimating = false; isTransitioning = false; initGrid();
+            if (mode === 'story') { document.getElementById('targetBox').style.display = 'block'; setupStage(); } 
+            else { document.getElementById('targetBox').style.display = 'none'; document.getElementById('modeDisplay').innerText = 'とことんモード'; movesLeft = 50; updateUI(); }
+            switchScreen('gameScreen');
+        }
+
+        function setupStage() {
+            if (currentStageIdx >= STAGES.length) { gameOver("ALL CLEAR!", `ストーリー完全制覇！<br>最終スコア: ${score}`); return; }
+            const stage = STAGES[currentStageIdx]; movesLeft = stage.moves;
+            document.getElementById('modeDisplay').innerText = `STAGE ${currentStageIdx + 1}`;
+            document.getElementById('targetName').innerText = MOLECULES[stage.id].name;
+            document.getElementById('targetFormula').innerText = MOLECULES[stage.id].formula;
+            document.getElementById('targetHint').innerText = MOLECULES[stage.id].hint;
+            updateUI(); isTransitioning = false;
+        }
+
+        function updateUI() { document.getElementById('scoreDisplay').innerText = score; document.getElementById('movesDisplay').innerText = movesLeft; }
+
+        function showMessage(text, color) {
+            const msgEl = document.getElementById('centerMessage');
+            msgEl.innerHTML = text; msgEl.style.color = color; msgEl.style.opacity = 1;
+            setTimeout(() => { msgEl.style.opacity = 0; }, 1500);
+        }
+
+        function gameOver(title, detail) {
+            document.getElementById('resultTitle').innerText = title;
+            document.getElementById('resultTitle').style.color = title === 'ALL CLEAR!' ? '#66fcf1' : '#f38ba8';
+            document.getElementById('resultDetail').innerHTML = detail;
+            switchScreen('resultScreen');
+        }
+
+        function getRandomBaseAtom() {
+            const bases = Object.keys(TILES).filter(k => TILES[k].isBase);
+            const totalWeight = bases.reduce((sum, k) => sum + TILES[k].weight, 0);
+            let r = Math.random() * totalWeight;
+            for (let k of bases) { if (r < TILES[k].weight) return k; r -= TILES[k].weight; }
+            return 'H';
+        }
+
+        function initGrid() { for (let c = 0; c < COLS; c++) { grid[c] = []; for (let r = 0; r < ROWS; r++) grid[c][r] = getRandomBaseAtom(); } }
+
+        function spawnParticles(x, y, color) {
+            for(let i=0; i<15; i++) particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10, life: 1.0, color: color, size: Math.random() * 4 + 2 });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let c = 0; c < COLS; c++) {
+                for (let r = 0; r < ROWS; r++) {
+                    const type = grid[c][r]; if (!type) continue;
+                    const x = c * TILE_SIZE; const y = r * TILE_SIZE; const cx = x + TILE_SIZE/2; const cy = y + TILE_SIZE/2;
+                    const tileDef = TILES[type]; const isSelected = path.some(p => p.c === c && p.r === r);
+                    const grad = ctx.createRadialGradient(cx - 5, cy - 5, 2, cx, cy, TILE_SIZE/2 - 2);
+                    grad.addColorStop(0, tileDef.glow); grad.addColorStop(0.4, tileDef.color); grad.addColorStop(1, '#0b0c10');
+                    ctx.beginPath(); ctx.arc(cx, cy, TILE_SIZE/2 - 4, 0, Math.PI * 2); ctx.fillStyle = grad; ctx.fill();
+                    if (isSelected) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.shadowColor = tileDef.glow; ctx.shadowBlur = 15; ctx.stroke(); ctx.shadowBlur = 0; }
+                    ctx.fillStyle = tileDef.isBase ? '#1f2833' : '#0b0c10'; ctx.font = tileDef.isBase ? 'bold 24px sans-serif' : 'bold 15px sans-serif';
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    const displayText = type === 'Ph' ? '⬡' : type; if(type === 'Ph') ctx.font = 'bold 30px sans-serif';
+                    ctx.fillText(displayText, cx, cy + 2);
+                }
+            }
+            if (path.length > 0) {
+                ctx.beginPath(); ctx.moveTo(path[0].c * TILE_SIZE + TILE_SIZE/2, path[0].r * TILE_SIZE + TILE_SIZE/2);
+                for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].c * TILE_SIZE + TILE_SIZE/2, path[i].r * TILE_SIZE + TILE_SIZE/2);
+                ctx.strokeStyle = '#66fcf1'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.shadowColor = '#66fcf1'; ctx.shadowBlur = 20; ctx.stroke(); ctx.shadowBlur = 0;
+            }
+            for(let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+                if(p.life <= 0) particles.splice(i, 1); 
+                else { ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.shadowColor = p.color; ctx.shadowBlur = 10; ctx.fill(); ctx.shadowBlur = 0; }
+            }
+            ctx.globalAlpha = 1.0; 
+        }
+
+        function gameLoop() { if (document.getElementById('gameScreen').classList.contains('active-screen')) draw(); requestAnimationFrame(gameLoop); }
+        gameLoop(); 
+
+        function getGridPos(x, y) { const c = Math.floor(x / TILE_SIZE); const r = Math.floor(y / TILE_SIZE); return (c >= 0 && c < COLS && r >= 0 && r < ROWS) ? { c, r } : null; }
+        function isAdjacent(pos1, pos2) { const dc = Math.abs(pos1.c - pos2.c); const dr = Math.abs(pos1.r - pos2.r); return (dc <= 1 && dr <= 1) && !(dc === 0 && dr === 0); }
+
+        function handlePointerDown(e) {
+            if (isAnimating || isTransitioning || movesLeft <= 0) return; e.preventDefault(); const rect = canvas.getBoundingClientRect();
+            const pos = getGridPos((e.clientX || e.touches[0].clientX) - rect.left, (e.clientY || e.touches[0].clientY) - rect.top);
+            if (pos && grid[pos.c][pos.r]) { isDrawing = true; path = [pos]; }
+        }
+        function handlePointerMove(e) {
+            if (!isDrawing) return; e.preventDefault(); const rect = canvas.getBoundingClientRect();
+            const pos = getGridPos((e.clientX || e.touches[0].clientX) - rect.left, (e.clientY || e.touches[0].clientY) - rect.top);
+            if (pos && grid[pos.c][pos.r]) {
+                const lastPos = path[path.length - 1]; const pathIndex = path.findIndex(p => p.c === pos.c && p.r === pos.r);
+                if (pathIndex !== -1) { path = path.slice(0, pathIndex + 1); return; }
+                if (isAdjacent(lastPos, pos)) path.push(pos);
+            }
+        }
+        function handlePointerUp() { if (!isDrawing) return; isDrawing = false; checkPath(); }
+
+        function checkPath() {
+            if (path.length < 2) { path = []; return; }
+            const counts = {}; path.forEach(p => { const type = grid[p.c][p.r]; counts[type] = (counts[type] || 0) + 1; });
+            let moveConsumed = false;
+
+            const molKey = Object.keys(MOLECULES).find(k => MOLECULES[k].reqs.some(req => Object.keys(req).length === Object.keys(counts).length && Object.keys(req).every(rk => counts[rk] === req[rk])));
+
+            if (molKey) {
+                const molecule = MOLECULES[molKey]; score += molecule.score; moveConsumed = true;
+                
+                // 図鑑データを更新してセーブ
+                collectionData[molKey] = (collectionData[molKey] || 0) + 1;
+                localStorage.setItem('chemicalPuzzleSave', JSON.stringify(collectionData));
+
+                path.forEach(p => { const type = grid[p.c][p.r]; if(type) spawnParticles(p.c * TILE_SIZE + TILE_SIZE/2, p.r * TILE_SIZE + TILE_SIZE/2, TILES[type].glow); grid[p.c][p.r] = null; });
+
+                let msg = `${molecule.name}<br><span style="font-size:0.5em">+${molecule.score}pt</span>`; let color = "#66fcf1";
+
+                if (currentMode === 'story') {
+                    if (molKey === STAGES[currentStageIdx].id) {
+                        const bonus = movesLeft * 1000; score += bonus; msg = `CLEAR!<br><span style="font-size:0.5em">手数ボーナス +${bonus}</span>`;
+                        isTransitioning = true; currentStageIdx++; setTimeout(setupStage, 2000);
+                    } else { color = "#f9e2af"; }
+                } else if (currentMode === 'endless') {
+                    const bonusMoves = Math.floor(molecule.score / 500);
+                    if (bonusMoves > 0) { movesLeft += bonusMoves; msg += `<br><span style="font-size:0.5em">+${bonusMoves} 手</span>`; }
+                }
+                showMessage(msg, color);
+            } else {
+                const fragment = FRAGMENTS.find(f => f.reqs.some(req => Object.keys(req).length === Object.keys(counts).length && Object.keys(req).every(rk => counts[rk] === req[rk])));
+                if (fragment) {
+                    moveConsumed = true; const lastPos = path[path.length - 1];
+                    path.forEach(p => { 
+                        if(p.c === lastPos.c && p.r === lastPos.r) { grid[p.c][p.r] = fragment.result; spawnParticles(p.c * TILE_SIZE + TILE_SIZE/2, p.r * TILE_SIZE + TILE_SIZE/2, '#ffffff'); } 
+                        else { const type = grid[p.c][p.r]; if(type) spawnParticles(p.c * TILE_SIZE + TILE_SIZE/2, p.r * TILE_SIZE + TILE_SIZE/2, TILES[type].glow); grid[p.c][p.r] = null; }
+                    });
+                    showMessage(`合成:<br>${fragment.result}`, "#b4befe");
+                }
+            }
+
+            if (moveConsumed) { movesLeft--; updateUI(); isAnimating = true; setTimeout(() => { applyGravity(); isAnimating = false; }, 300); }
+            path = [];
+            if (movesLeft <= 0 && currentMode === 'story' && !isTransitioning) setTimeout(() => gameOver("GAME OVER", `ステージ ${currentStageIdx+1} 敗退<br>最終スコア: ${score}`), 500);
+            else if (movesLeft <= 0 && currentMode === 'endless') setTimeout(() => gameOver("FINISH!", `最終スコア: ${score}`), 500);
+        }
+
+        function applyGravity() {
+            for (let c = 0; c < COLS; c++) {
+                let column = grid[c].filter(atom => atom !== null); const missing = ROWS - column.length;
+                for (let i = 0; i < missing; i++) column.unshift(getRandomBaseAtom()); grid[c] = column;
+            }
+        }
+
+        canvas.addEventListener('mousedown', handlePointerDown); canvas.addEventListener('mousemove', handlePointerMove); window.addEventListener('mouseup', handlePointerUp);
+        canvas.addEventListener('touchstart', handlePointerDown, {passive: false}); canvas.addEventListener('touchmove', handlePointerMove, {passive: false}); window.addEventListener('touchend', handlePointerUp);
+    </script>
+</body>
+</html>
